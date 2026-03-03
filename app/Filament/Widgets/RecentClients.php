@@ -29,17 +29,17 @@ class RecentClients extends BaseWidget
                     ->label('Client Name')
                     ->searchable()
                     ->sortable(),
-                
+
                 TextColumn::make('email')
                     ->label('Email')
                     ->searchable()
                     ->copyable(),
-                
+
                 TextColumn::make('company_name')
                     ->label('Company')
                     ->searchable()
-                    ->default('—'),
-                
+                    ->placeholder('—'),
+
                 TextColumn::make('package.package_name')
                     ->label('Package')
                     ->badge()
@@ -50,7 +50,7 @@ class RecentClients extends BaseWidget
                         'Enterprise' => 'success',
                         default => 'gray',
                     }),
-                
+
                 TextColumn::make('status')
                     ->label('Status')
                     ->badge()
@@ -60,13 +60,13 @@ class RecentClients extends BaseWidget
                         'inactive' => 'danger',
                         default => 'gray',
                     }),
-                
+
                 TextColumn::make('vendors_count')
                     ->label('Vendors')
                     ->alignCenter()
                     ->badge()
                     ->color('primary'),
-                
+
                 TextColumn::make('created_at')
                     ->label('Joined')
                     ->dateTime('M j, Y')

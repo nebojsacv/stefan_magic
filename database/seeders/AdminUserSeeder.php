@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class AdminUserSeeder extends Seeder
 {
@@ -12,13 +13,19 @@ class AdminUserSeeder extends Seeder
      */
     public function run(): void
     {
-        User::where('email', 'admin@patf.com')->update([
-            'role' => 'super',
-            'status' => 'active',
-            'company_name' => 'PATF Admin',
-            'assessments_allowed' => -1,
-        ]);
+        User::updateOrCreate(
+            ['email' => 'admin@patf.com'],
+            [
+                'name' => 'PATF Admin',
+                'password' => Hash::make('password'),
+                'role' => 'super',
+                'status' => 'active',
+                'company_name' => 'PATF Admin',
+                'assessments_allowed' => -1,
+                'email_verified_at' => now(),
+            ]
+        );
 
-        $this->command->info('✅ Admin user updated with super role');
+        $this->command->info('✅ Admin user ready — admin@patf.com / password');
     }
 }

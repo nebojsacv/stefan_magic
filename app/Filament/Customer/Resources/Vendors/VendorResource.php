@@ -2,6 +2,7 @@
 
 namespace App\Filament\Customer\Resources\Vendors;
 
+use App\Filament\Customer\Resources\Vendors\Pages\ClassifyVendor;
 use App\Filament\Customer\Resources\Vendors\Pages\CreateVendor;
 use App\Filament\Customer\Resources\Vendors\Pages\EditVendor;
 use App\Filament\Customer\Resources\Vendors\Pages\ListVendors;
@@ -32,24 +33,33 @@ class VendorResource extends Resource
     public static function getNavigationBadge(): ?string
     {
         $user = Auth::user();
-        if (!$user) return null;
-        
+        if (! $user) {
+            return null;
+        }
+
         $used = $user->vendors()->count();
         $limit = $user->assessments_allowed === -1 ? '∞' : $user->assessments_allowed;
-        
+
         return "{$used}/{$limit}";
     }
 
     public static function getNavigationBadgeColor(): string|array|null
     {
         $user = Auth::user();
-        if (!$user || $user->assessments_allowed === -1) return 'success';
-        
+        if (! $user || $user->assessments_allowed === -1) {
+            return 'success';
+        }
+
         $used = $user->vendors()->count();
         $percentage = ($used / $user->assessments_allowed) * 100;
-        
-        if ($percentage >= 90) return 'danger';
-        if ($percentage >= 70) return 'warning';
+
+        if ($percentage >= 90) {
+            return 'danger';
+        }
+        if ($percentage >= 70) {
+            return 'warning';
+        }
+
         return 'success';
     }
 
@@ -94,6 +104,7 @@ class VendorResource extends Resource
             'index' => ListVendors::route('/'),
             'create' => CreateVendor::route('/create'),
             'edit' => EditVendor::route('/{record}/edit'),
+            'classify' => ClassifyVendor::route('/{record}/classify'),
         ];
     }
 
