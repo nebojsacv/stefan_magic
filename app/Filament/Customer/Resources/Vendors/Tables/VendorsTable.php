@@ -40,26 +40,6 @@ class VendorsTable
                     ->copyable()
                     ->toggleable(),
 
-                TextColumn::make('questionnaire_link')
-                    ->label('Questionnaire Link')
-                    ->state(function (Vendor $record): ?string {
-                        $questionnaire = $record->questionnaires()
-                            ->whereIn('status', ['sent', 'in_progress', 'opened'])
-                            ->where('is_submitted', false)
-                            ->latest()
-                            ->first();
-
-                        return $questionnaire ? url('/q/'.$questionnaire->unique_id) : null;
-                    })
-                    ->copyable()
-                    ->copyMessage('Link copied')
-                    ->placeholder('—')
-                    ->url(fn (?string $state): ?string => $state)
-                    ->openUrlInNewTab()
-                    ->icon('heroicon-m-link')
-                    ->color('info')
-                    ->toggleable(),
-
                 TextColumn::make('industry')
                     ->searchable()
                     ->toggleable(),
