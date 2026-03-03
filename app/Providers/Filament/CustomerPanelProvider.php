@@ -32,7 +32,6 @@ class CustomerPanelProvider extends PanelProvider
             ->login()
             ->registration(\App\Filament\Customer\Pages\Auth\Register::class)
             ->passwordReset()
-            ->emailVerification()
             ->profile()
             ->brandName('PATF - Vendor Risk Assessment')
             ->colors([

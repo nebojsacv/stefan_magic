@@ -3,10 +3,13 @@
 namespace App\Filament\Customer\Resources\Vendors\Pages;
 
 use App\Filament\Customer\Resources\Vendors\VendorResource;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Support\Icons\Heroicon;
 
 class EditVendor extends EditRecord
 {
@@ -14,10 +17,36 @@ class EditVendor extends EditRecord
 
     protected function getHeaderActions(): array
     {
-        return [
+        $questionnaire = $this->record->questionnaires()
+            ->whereIn('status', ['sent', 'in_progress', 'opened'])
+            ->where('is_submitted', false)
+            ->latest()
+            ->first();
+
+        $questionnaireLink = $questionnaire ? url('/q/'.$questionnaire->unique_id) : null;
+
+        $actions = [
+            Action::make('questionnaireLink')
+                ->label('Questionnaire Link')
+                ->icon(Heroicon::OutlinedLink)
+                ->color('info')
+                ->visible((bool) $questionnaireLink)
+                ->modalHeading('Questionnaire Link (for testing)')
+                ->modalDescription('Copy this link to share with the vendor. It is also sent by email.')
+                ->form([
+                    TextInput::make('link')
+                        ->label('Link')
+                        ->default($questionnaireLink)
+                        ->readOnly()
+                        ->copyable(copyMessage: 'Link copied'),
+                ])
+                ->modalSubmitAction(false)
+                ->modalCancelActionLabel('Close'),
             DeleteAction::make(),
             ForceDeleteAction::make(),
             RestoreAction::make(),
         ];
+
+        return $actions;
     }
 }
