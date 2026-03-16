@@ -4,7 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Questionnaire;
 use App\Models\QuestionnaireAnswer;
-use App\Services\MockAiAnalysisService;
+use App\Services\AiAnalysisService;
 use Livewire\Component;
 
 class PublicQuestionnaire extends Component
@@ -64,7 +64,7 @@ class PublicQuestionnaire extends Component
             'questions_completed' => $questions->count(),
         ]);
 
-        app(MockAiAnalysisService::class)->analyze($this->questionnaire->fresh());
+        app(AiAnalysisService::class)->analyze($this->questionnaire->fresh());
 
         $this->redirect(route('questionnaire.thank-you'));
     }
