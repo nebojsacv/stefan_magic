@@ -2,6 +2,7 @@
 
 namespace App\Filament\Customer\Resources\Vendors\Tables;
 
+use App\Filament\Customer\Resources\Questionnaires\QuestionnaireResource;
 use App\Filament\Customer\Resources\Vendors\VendorResource;
 use App\Models\Vendor;
 use Filament\Actions\Action;
@@ -123,6 +124,23 @@ class VendorsTable
                     ->color('warning')
                     ->url(fn (Vendor $record): string => VendorResource::getUrl('classify', ['record' => $record]))
                     ->visible(fn (Vendor $record): bool => $record->classification_status === 'pending'),
+
+                Action::make('review')
+                    ->label('Review AI Result')
+                    ->icon('heroicon-m-magnifying-glass')
+                    ->color('primary')
+                    ->url(function (Vendor $record): string {
+                        $questionnaire = $record->questionnaires()
+                            ->where('is_submitted', true)
+                            ->latest()
+                            ->first();
+
+                        return $questionnaire
+                            ? QuestionnaireResource::getUrl('review', ['record' => $questionnaire])
+                            : VendorResource::getUrl('index');
+                    })
+                    ->visible(fn (Vendor $record): bool => $record->classification_status === 'pending_approval'),
+
                 EditAction::make(),
             ])
             ->toolbarActions([

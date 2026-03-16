@@ -2,6 +2,7 @@
 
 namespace App\Filament\Customer\Resources\Vendors\Pages;
 
+use App\Filament\Customer\Resources\Questionnaires\QuestionnaireResource;
 use App\Filament\Customer\Resources\Vendors\VendorResource;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
@@ -25,7 +26,30 @@ class EditVendor extends EditRecord
 
         $questionnaireLink = $questionnaire ? url('/q/'.$questionnaire->unique_id) : null;
 
+        $isClassified = ! is_null($this->record->classification_status);
+        $isPendingApproval = $this->record->classification_status === 'pending_approval';
+
+        $pendingQuestionnaire = $isPendingApproval
+            ? $this->record->questionnaires()->where('is_submitted', true)->latest()->first()
+            : null;
+
         $actions = [
+            Action::make('review')
+                ->label('Review AI Result')
+                ->icon(Heroicon::OutlinedMagnifyingGlass)
+                ->color('primary')
+                ->visible($isPendingApproval && $pendingQuestionnaire !== null)
+                ->url($pendingQuestionnaire
+                    ? QuestionnaireResource::getUrl('review', ['record' => $pendingQuestionnaire])
+                    : '#'
+                ),
+
+            Action::make('classify')
+                ->label($isClassified ? 'Re-classify Vendor' : 'Classify Vendor')
+                ->icon($isClassified ? Heroicon::OutlinedArrowPath : Heroicon::OutlinedShieldCheck)
+                ->color($isClassified ? 'gray' : 'primary')
+                ->url(VendorResource::getUrl('classify', ['record' => $this->record])),
+
             Action::make('questionnaireLink')
                 ->label('Questionnaire Link')
                 ->icon(Heroicon::OutlinedLink)

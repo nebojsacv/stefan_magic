@@ -5,6 +5,7 @@ namespace App\Filament\Customer\Resources\Questionnaires;
 use App\Filament\Customer\Resources\Questionnaires\Pages\CreateQuestionnaire;
 use App\Filament\Customer\Resources\Questionnaires\Pages\EditQuestionnaire;
 use App\Filament\Customer\Resources\Questionnaires\Pages\ListQuestionnaires;
+use App\Filament\Customer\Resources\Questionnaires\Pages\ReviewQuestionnaire;
 use App\Filament\Customer\Resources\Questionnaires\Schemas\QuestionnaireForm;
 use App\Filament\Customer\Resources\Questionnaires\Tables\QuestionnairesTable;
 use App\Models\Questionnaire;
@@ -57,6 +58,7 @@ class QuestionnaireResource extends Resource
             'index' => ListQuestionnaires::route('/'),
             'create' => CreateQuestionnaire::route('/create'),
             'edit' => EditQuestionnaire::route('/{record}/edit'),
+            'review' => ReviewQuestionnaire::route('/{record}/review'),
         ];
     }
 

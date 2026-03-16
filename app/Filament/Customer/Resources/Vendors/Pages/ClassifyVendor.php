@@ -4,10 +4,12 @@ namespace App\Filament\Customer\Resources\Vendors\Pages;
 
 use App\Filament\Customer\Resources\Vendors\VendorResource;
 use App\Mail\QuestionnaireInvitation;
+use App\Models\ClassificationQuestion;
 use App\Models\Questionnaire;
 use App\Models\QuestionnaireTemplate;
 use App\Models\Vendor;
 use App\Models\VendorClassification;
+use App\Services\TierClassificationService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
@@ -47,11 +49,19 @@ class ClassifyVendor extends Page
             'dependency_level' => null,
             'criticality_score' => null,
             'notes' => null,
+            'q1' => null,
+            'q2' => null,
+            'q3' => null,
+            'q4' => null,
+            'q5' => null,
+            'tier_manual_override' => null,
         ];
     }
 
     public function form(Schema $schema): Schema
     {
+        $classificationQuestions = ClassificationQuestion::active()->get();
+
         return $schema
             ->statePath('data')
             ->components([
@@ -61,7 +71,7 @@ class ClassifyVendor extends Page
                         Radio::make('classification_method')
                             ->label('Method')
                             ->options([
-                                'guided' => 'Guided — Use a questionnaire to determine risk level',
+                                'guided' => 'Guided — Answer 5 questions to determine the risk tier automatically',
                                 'manual' => 'Manual — Classify this vendor directly',
                             ])
                             ->default('guided')
@@ -118,9 +128,61 @@ class ClassifyVendor extends Page
                     ]),
 
                 Section::make('Guided Classification')
-                    ->description('A questionnaire will be sent to the vendor\'s point of contact. Once submitted, AI will analyse the answers and suggest a risk level for you to review.')
+                    ->description('Answer these 5 questions about the vendor. The algorithm will compute the risk tier automatically.')
                     ->visible(fn ($get) => $get('classification_method') === 'guided')
-                    ->schema([]),
+                    ->schema(
+                        $classificationQuestions->map(fn (ClassificationQuestion $q) => Radio::make($q->key)
+                            ->label($q->label)
+                            ->helperText($q->description)
+                            ->options(['yes' => 'Yes', 'no' => 'No'])
+                            ->required()
+                            ->inline()
+                        )->toArray()
+                    ),
+
+                Section::make('Manual Override (Optional)')
+                    ->description('The algorithm computed a tier based on your answers. You may upgrade it, but NIS2 does not allow downgrading.')
+                    ->visible(fn ($get) => $get('classification_method') === 'guided'
+                        && $get('q1') !== null
+                        && $get('q2') !== null
+                        && $get('q3') !== null
+                        && $get('q4') !== null
+                        && $get('q5') !== null
+                    )
+                    ->schema([
+                        Select::make('tier_manual_override')
+                            ->label('Override Tier')
+                            ->placeholder('No override — keep algorithm result')
+                            ->options(function ($get): array {
+                                $service = new TierClassificationService;
+                                $answers = [
+                                    'q1' => $get('q1') ?? 'no',
+                                    'q2' => $get('q2') ?? 'no',
+                                    'q3' => $get('q3') ?? 'no',
+                                    'q4' => $get('q4') ?? 'no',
+                                    'q5' => $get('q5') ?? 'no',
+                                ];
+                                $systemTier = $service->computeTier($answers);
+
+                                return $service->allowedOverrides($systemTier);
+                            })
+                            ->live()
+                            ->helperText(function ($get): string {
+                                $service = new TierClassificationService;
+                                $answers = [
+                                    'q1' => $get('q1') ?? 'no',
+                                    'q2' => $get('q2') ?? 'no',
+                                    'q3' => $get('q3') ?? 'no',
+                                    'q4' => $get('q4') ?? 'no',
+                                    'q5' => $get('q5') ?? 'no',
+                                ];
+                                $systemTier = $service->computeTier($answers);
+                                $finalTier = $service->resolveFinalTier($systemTier, $get('tier_manual_override'));
+
+                                return 'Algorithm result: '.strtoupper($systemTier)
+                                    .' → Final tier: '.strtoupper($finalTier);
+                            }),
+                    ]),
             ]);
     }
 
@@ -147,11 +209,85 @@ class ClassifyVendor extends Page
         $method = $data['classification_method'];
 
         if ($method === 'guided') {
-            $this->redirectToGuidedFlow();
+            $this->saveGuidedClassification($data);
 
             return;
         }
 
+        $this->saveManualClassification($data);
+    }
+
+    protected function saveGuidedClassification(array $data): void
+    {
+        $answers = [
+            'q1' => $data['q1'] ?? 'no',
+            'q2' => $data['q2'] ?? 'no',
+            'q3' => $data['q3'] ?? 'no',
+            'q4' => $data['q4'] ?? 'no',
+            'q5' => $data['q5'] ?? 'no',
+        ];
+
+        $service = new TierClassificationService;
+        $tierSystem = $service->computeTier($answers);
+        $tierOverride = $data['tier_manual_override'] ?: null;
+        $tierFinal = $service->resolveFinalTier($tierSystem, $tierOverride);
+
+        $template = QuestionnaireTemplate::where('is_active', true)
+            ->where('risk_level', $tierFinal)
+            ->first();
+
+        if (! $template) {
+            Notification::make()
+                ->title('No questionnaire template available')
+                ->body("Please contact administrator to set up a {$tierFinal}-tier questionnaire template.")
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        VendorClassification::create([
+            'vendor_id' => $this->record->id,
+            'risk_level' => $tierFinal,
+            'tier_system' => $tierSystem,
+            'tier_manual_override' => $tierOverride,
+            'tier_final' => $tierFinal,
+            'classification_method' => 'guided',
+            'classification_answers' => $answers,
+            'classified_by' => Auth::id(),
+        ]);
+
+        $questionnaire = Questionnaire::create([
+            'vendor_id' => $this->record->id,
+            'template_id' => $template->id,
+            'user_id' => Auth::id(),
+            'status' => 'sent',
+        ]);
+
+        $this->record->update([
+            'current_risk_level' => $tierFinal,
+            'classification_method' => 'guided',
+            'classification_status' => 'pending_approval',
+        ]);
+
+        $questionnaireUrl = url('/q/'.$questionnaire->unique_id);
+        Mail::to($this->record->poc_email)->send(new QuestionnaireInvitation($questionnaire, $questionnaireUrl));
+
+        Notification::make()
+            ->title('Vendor classified — questionnaire sent')
+            ->body(
+                'Tier: '.strtoupper($tierFinal).
+                ($tierOverride ? ' (algorithm: '.strtoupper($tierSystem).', overridden)' : '').
+                '. A '.$template->question_count."-question assessment has been sent to {$this->record->poc_email}."
+            )
+            ->success()
+            ->send();
+
+        $this->redirect(VendorResource::getUrl('index'));
+    }
+
+    protected function saveManualClassification(array $data): void
+    {
         $isPreCertified = (bool) ($data['is_pre_certified'] ?? false);
 
         VendorClassification::create([
@@ -177,50 +313,6 @@ class ClassifyVendor extends Page
             ->body($isPreCertified
                 ? "{$this->record->name} has been marked as a pre-certified vendor with low risk."
                 : "{$this->record->name} has been classified as ".ucfirst($data['risk_level']).' risk.')
-            ->success()
-            ->send();
-
-        $this->redirect(VendorResource::getUrl('index'));
-    }
-
-    protected function redirectToGuidedFlow(): void
-    {
-        $template = QuestionnaireTemplate::where('is_active', true)
-            ->where('risk_level', 'medium')
-            ->first();
-
-        if (! $template) {
-            $template = QuestionnaireTemplate::where('is_active', true)->first();
-        }
-
-        if (! $template) {
-            Notification::make()
-                ->title('No questionnaire template available')
-                ->body('Please contact administrator to set up questionnaire templates.')
-                ->danger()
-                ->send();
-
-            return;
-        }
-
-        $questionnaire = Questionnaire::create([
-            'vendor_id' => $this->record->id,
-            'template_id' => $template->id,
-            'user_id' => Auth::id(),
-            'status' => 'sent',
-        ]);
-
-        $this->record->update([
-            'classification_method' => 'guided',
-            'classification_status' => 'pending_approval',
-        ]);
-
-        $questionnaireUrl = url('/q/'.$questionnaire->unique_id);
-        Mail::to($this->record->poc_email)->send(new QuestionnaireInvitation($questionnaire, $questionnaireUrl));
-
-        Notification::make()
-            ->title('Questionnaire sent')
-            ->body("A security assessment questionnaire has been sent to {$this->record->poc_email}. You will be notified when it is completed.")
             ->success()
             ->send();
 

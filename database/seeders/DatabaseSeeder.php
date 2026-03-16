@@ -15,6 +15,8 @@ class DatabaseSeeder extends Seeder
             PackageSeeder::class,
             AdminUserSeeder::class,
             QuestionnaireTemplateSeeder::class,
+            ClassificationQuestionsSeeder::class,
+            QuestionnaireContentSeeder::class,
         ]);
     }
 }
