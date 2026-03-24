@@ -94,23 +94,64 @@
                         $responseColor = $isYes ? '#16a34a' : ($isNo ? '#dc2626' : '#6b7280');
                         $rowBg = $index % 2 === 0 ? '#f9fafb' : '#ffffff';
                     @endphp
-                    <div style="display: flex; align-items: flex-start; justify-content: space-between; padding: 12px 16px; background: {{ $rowBg }}; border-radius: 6px; gap: 16px;">
-                        <div style="flex: 1;">
-                            <p style="font-size: 13px; font-weight: 500; color: #111827; margin: 0;">
+                    <div style="padding: 12px 16px; background: {{ $rowBg }}; border-radius: 6px;">
+                        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;">
+                            <p style="font-size: 13px; font-weight: 500; color: #111827; margin: 0; flex: 1;">
                                 {{ $loop->iteration }}. {{ $question->question_text }}
                             </p>
-                            @if($question->need_evidence && $isYes)
-                                <p style="font-size: 11px; color: #9ca3af; margin: 3px 0 0;">Evidence required</p>
-                            @endif
+                            <div style="flex-shrink: 0; text-align: right; min-width: 80px;">
+                                <span style="font-size: 13px; font-weight: 700; color: {{ $responseColor }};">
+                                    {{ $responseText }}
+                                </span>
+                                @if($question->scoring_weight)
+                                    <p style="font-size: 11px; color: #9ca3af; margin: 2px 0 0;">weight {{ $question->scoring_weight }}</p>
+                                @endif
+                            </div>
                         </div>
-                        <div style="flex-shrink: 0; text-align: right; min-width: 80px;">
-                            <span style="font-size: 13px; font-weight: 700; color: {{ $responseColor }};">
-                                {{ $responseText }}
-                            </span>
-                            @if($question->scoring_weight)
-                                <p style="font-size: 11px; color: #9ca3af; margin: 2px 0 0;">weight {{ $question->scoring_weight }}</p>
-                            @endif
-                        </div>
+
+                        @if(!empty($answer->evidence_files))
+                            <div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px;">
+                                @foreach($answer->evidence_files as $file)
+                                    @php
+                                        $fileUrl = route('evidence.serve', ltrim(str_replace('questionnaire-evidence/', '', $file['path']), '/'));
+                                        $isImage = str_starts_with($file['mime_type'] ?? '', 'image/');
+                                        $filename = $file['filename'] ?? basename($file['path']);
+                                        $sizeKb = isset($file['size']) ? round($file['size'] / 1024, 1) : null;
+                                    @endphp
+
+                                    @if($isImage)
+                                        <a href="{{ $fileUrl }}" target="_blank"
+                                           style="display: inline-block; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; text-decoration: none;">
+                                            <img src="{{ $fileUrl }}"
+                                                 alt="{{ $filename }}"
+                                                 style="display: block; max-height: 120px; max-width: 200px; object-fit: cover;">
+                                            <div style="padding: 4px 8px; background: #f9fafb; font-size: 11px; color: #6b7280;">
+                                                {{ $filename }}
+                                                @if($sizeKb)
+                                                    &bull; {{ $sizeKb }} KB
+                                                @endif
+                                            </div>
+                                        </a>
+                                    @else
+                                        <a href="{{ $fileUrl }}" target="_blank"
+                                           style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px;">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                                            </svg>
+                                            <span>
+                                                {{ $filename }}
+                                                @if($sizeKb)
+                                                    <span style="color: #9ca3af; font-size: 11px; margin-left: 4px;">{{ $sizeKb }} KB</span>
+                                                @endif
+                                            </span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                                            </svg>
+                                        </a>
+                                    @endif
+                                @endforeach
+                            </div>
+                        @endif
                     </div>
                 @endforeach
             </div>

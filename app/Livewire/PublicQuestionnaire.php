@@ -6,12 +6,18 @@ use App\Models\Questionnaire;
 use App\Models\QuestionnaireAnswer;
 use App\Services\AiAnalysisService;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class PublicQuestionnaire extends Component
 {
+    use WithFileUploads;
+
     public Questionnaire $questionnaire;
 
     public array $answers = [];
+
+    /** @var array<int, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile|null> */
+    public array $evidenceFiles = [];
 
     public function mount(string $uniqueId): void
     {
@@ -39,6 +45,8 @@ class PublicQuestionnaire extends Component
 
     public function submit(): void
     {
+        $this->validate($this->buildValidationRules());
+
         $questions = $this->questionnaire->template->questions;
 
         foreach ($questions as $question) {
@@ -57,6 +65,40 @@ class PublicQuestionnaire extends Component
             );
         }
 
+        // Store evidence files and attach paths to the relevant answers
+        foreach ($this->evidenceFiles as $questionId => $file) {
+            if (! $file) {
+                continue;
+            }
+
+            $path = $file->store(
+                "questionnaire-evidence/{$this->questionnaire->id}",
+                'local'
+            );
+
+            $answer = QuestionnaireAnswer::firstOrCreate(
+                [
+                    'questionnaire_id' => $this->questionnaire->id,
+                    'question_id' => $questionId,
+                ],
+                [
+                    'questionnaire_id' => $this->questionnaire->id,
+                    'question_id' => $questionId,
+                ]
+            );
+
+            $answer->update([
+                'evidence_files' => [
+                    [
+                        'filename' => $file->getClientOriginalName(),
+                        'path' => $path,
+                        'mime_type' => $file->getMimeType(),
+                        'size' => $file->getSize(),
+                    ],
+                ],
+            ]);
+        }
+
         $this->questionnaire->update([
             'is_submitted' => true,
             'status' => 'submitted',
@@ -67,6 +109,33 @@ class PublicQuestionnaire extends Component
         app(AiAnalysisService::class)->analyze($this->questionnaire->fresh());
 
         $this->redirect(route('questionnaire.thank-you'));
+    }
+
+    /**
+     * Build dynamic validation rules depending on each question's evidence_required_when setting.
+     *
+     * @return array<string, string>
+     */
+    protected function buildValidationRules(): array
+    {
+        $fileMimes = 'file|mimes:pdf,jpg,jpeg,png,gif,webp|max:10240';
+        $rules = [];
+
+        foreach ($this->questionnaire->template->questions as $question) {
+            $key = "evidenceFiles.{$question->id}";
+
+            if (! $question->hasEvidenceUpload()) {
+                continue;
+            }
+
+            if ($question->isEvidenceRequired($this->answers[$question->id] ?? null)) {
+                $rules[$key] = "required|{$fileMimes}";
+            } else {
+                $rules[$key] = "nullable|{$fileMimes}";
+            }
+        }
+
+        return $rules;
     }
 
     protected function formatAnswerForInput(QuestionnaireAnswer $answer, ?\App\Models\Question $question): mixed

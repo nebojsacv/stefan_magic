@@ -29,6 +29,9 @@ class VendorRiskAnalysisAgent implements Agent, HasStructuredOutput
         - Provide 3–5 concise, actionable key_findings that explain the most important observations.
         - Keep analysis_summary under 200 words.
         - confidence_score should reflect how complete and consistent the answers are (0.0–1.0).
+        - Some answers include attached evidence files (documents or images). Review their content to verify the vendor's claims.
+          When evidence is present and validates the answer, this should increase confidence and lower risk for that question.
+          When evidence is absent but was expected (marked "[evidence file attached]" is not present for a high-risk Yes/No question), treat it as an unverified claim.
         INSTRUCTIONS;
     }
 

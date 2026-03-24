@@ -7,6 +7,9 @@ use App\Models\AiAnalysis;
 use App\Models\Questionnaire;
 use App\Models\Vendor;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Laravel\Ai\Files\Document;
+use Laravel\Ai\Files\Image;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use Throwable;
 
@@ -34,15 +37,17 @@ class AiAnalysisService
     protected function analyzeWithAi(Questionnaire $questionnaire, float $startedAt): AiAnalysis
     {
         $prompt = $this->buildPrompt($questionnaire);
+        $attachments = $this->buildAttachments($questionnaire);
 
         Log::info('[AI Analysis] Sending prompt to AI.', [
             'questionnaire_id' => $questionnaire->id,
             'vendor' => $questionnaire->vendor->name,
             'tier' => $questionnaire->template->risk_level,
             'answer_count' => $questionnaire->answers->count(),
+            'attachment_count' => count($attachments),
         ]);
 
-        $response = VendorRiskAnalysisAgent::make()->prompt($prompt);
+        $response = VendorRiskAnalysisAgent::make()->prompt($prompt, attachments: $attachments);
 
         $elapsedMs = (int) round((microtime(true) - $startedAt) * 1000);
 
@@ -156,6 +161,51 @@ class AiAnalysisService
         return $analysis;
     }
 
+    /**
+     * Build file attachments from evidence files stored for each answer.
+     *
+     * @return array<int, \Laravel\Ai\Files\Document|\Laravel\Ai\Files\Image>
+     */
+    protected function buildAttachments(Questionnaire $questionnaire): array
+    {
+        $attachments = [];
+
+        foreach ($questionnaire->answers as $answer) {
+            if (empty($answer->evidence_files)) {
+                continue;
+            }
+
+            foreach ($answer->evidence_files as $file) {
+                $path = $file['path'] ?? null;
+                $mimeType = $file['mime_type'] ?? '';
+
+                if (! $path || ! Storage::disk('local')->exists($path)) {
+                    Log::warning('[AI Analysis] Evidence file not found on disk.', [
+                        'questionnaire_id' => $questionnaire->id,
+                        'path' => $path,
+                    ]);
+
+                    continue;
+                }
+
+                $attachment = str_starts_with($mimeType, 'image/')
+                    ? Image::fromStorage($path, 'local')
+                    : Document::fromStorage($path, 'local');
+
+                $attachments[] = $attachment;
+
+                Log::info('[AI Analysis] Evidence file attached.', [
+                    'questionnaire_id' => $questionnaire->id,
+                    'question_id' => $answer->question_id,
+                    'filename' => $file['filename'] ?? $path,
+                    'mime_type' => $mimeType,
+                ]);
+            }
+        }
+
+        return $attachments;
+    }
+
     protected function buildPrompt(Questionnaire $questionnaire): string
     {
         $tier = strtoupper($questionnaire->template->risk_level ?? 'unknown');
@@ -168,13 +218,16 @@ class AiAnalysisService
                 ? implode(', ', $answer->selected_options)
                 : ($answer->answer_text ?? 'No answer');
 
+            $hasEvidence = ! empty($answer->evidence_files);
+
             $lines[] = sprintf(
-                '%d. [%s | weight:%s] %s → %s',
+                '%d. [%s | weight:%s] %s → %s%s',
                 $index + 1,
                 $question->question_category,
                 $question->scoring_weight,
                 $question->question_text,
-                $response
+                $response,
+                $hasEvidence ? ' [evidence file attached]' : ''
             );
         }
 

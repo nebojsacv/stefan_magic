@@ -5,6 +5,7 @@ namespace App\Filament\Resources\QuestionnaireTemplates;
 use App\Filament\Resources\QuestionnaireTemplates\Pages\CreateQuestionnaireTemplate;
 use App\Filament\Resources\QuestionnaireTemplates\Pages\EditQuestionnaireTemplate;
 use App\Filament\Resources\QuestionnaireTemplates\Pages\ListQuestionnaireTemplates;
+use App\Filament\Resources\QuestionnaireTemplates\RelationManagers\QuestionsRelationManager;
 use App\Filament\Resources\QuestionnaireTemplates\Schemas\QuestionnaireTemplateForm;
 use App\Filament\Resources\QuestionnaireTemplates\Tables\QuestionnaireTemplatesTable;
 use App\Models\QuestionnaireTemplate;
@@ -33,7 +34,7 @@ class QuestionnaireTemplateResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            QuestionsRelationManager::class,
         ];
     }
 

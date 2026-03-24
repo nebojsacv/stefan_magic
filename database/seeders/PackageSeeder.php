@@ -74,9 +74,12 @@ class PackageSeeder extends Seeder
         ];
 
         foreach ($packages as $packageData) {
-            Package::create($packageData);
+            Package::updateOrCreate(
+                ['package_name' => $packageData['package_name'], 'price' => $packageData['price']],
+                $packageData
+            );
         }
 
-        $this->command->info('✅ Created 4 subscription packages');
+        $this->command->info('✅ Upserted 4 subscription packages');
     }
 }
